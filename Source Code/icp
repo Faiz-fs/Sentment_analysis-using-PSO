@@ -1,0 +1,679 @@
+import pandas as pd
+import torch
+import numpy as np
+import sqlite3
+import matplotlib.pyplot as plt
+import seaborn as sns
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from nltk.stem.porter import PorterStemmer
+from sklearn.feature_extraction.text import CountVectorizer
+
+pd.set_option("display.max_columns", None)
+pd.set_option("display.max_rows", None)
+import warnings
+
+con = sqlite3.connect("dataset/flipkart_products.db")
+items = pd.read_sql_query("SELECT * from items", con)
+con.close()
+
+items.head()
+
+items.info()
+
+con = sqlite3.connect("dataset/flipkart_products.db")
+
+df = pd.read_sql_query("SELECT * from ECMB000001", con)
+
+for i in range(2, len(items) + 1):
+
+    df_temp = pd.read_sql_query("SELECT * from ECMB{:06d}".format(i), con)
+    df = pd.concat([df, df_temp])
+con.close()
+
+df.info()
+
+df.head()
+
+import missingno as msno
+
+plt.figure(figsize=(25, 20))
+msno.matrix(df, color=[0.2, 0.4, 1])
+plt.show()
+
+df.dropna(inplace=True, axis=0)
+df.info()
+
+plt.figure(figsize=(25, 20))
+msno.matrix(df, color=[0.2, 0.4, 1])
+plt.show()
+
+def remove_url(text):
+    text = re.sub(r"http\S+", "", text)
+    return text
+    
+sample = "ℍ𝕚 𝔼𝕧𝕖𝕣𝕪𝕠𝕟𝕖 𝕀 𝕒𝕞 𝔸𝕟𝕜𝕚𝕥 𝔾𝕦𝕡𝕥𝕒 𝕙𝕒𝕧𝕚𝕟𝕘 𝕥𝕙𝕖 𝕗𝕠𝕝𝕝𝕠𝕨𝕚𝕟𝕘 𝕂𝕒𝕘𝕘𝕝𝕖 𝕡𝕣𝕠𝕗𝕚𝕝𝕖 \n https://www.kaggle.com/nkitgupta 𝕒𝕟𝕕 𝕀 𝕒𝕞 😊 𝕥𝕠 𝕔𝕣𝕖𝕒𝕥𝕖 𝕥𝕙𝕚𝕤 𝕟𝕠𝕥𝕖𝕓𝕠𝕠𝕜"
+print(f"Text before removing url:- \n {sample}")
+
+sample = remove_url(sample)
+print(f"Text after removing url:- \n {sample}")
+
+import unicodedata as uni
+
+print(f"Text before Unicode Normalization:- \n {sample}")
+
+sample = uni.normalize("NFKD", sample)
+print(f"Text after Unicode Normalization:- \n {sample}")
+
+import demoji
+
+def handle_emoji(string):
+    emojis = demoji.findall(string)
+    for emoji in emojis:
+        string = string.replace(emoji, " " + emojis[emoji].split(":")[0])
+
+    return string
+
+print(f"Before Handling emoji:- \n {sample}")
+print(f"After Handling emoji:- \n {handle_emoji(sample)}")
+
+def word_tokenizer(text):
+    text = text.lower()
+    text = text.split()
+    return text
+
+sample = "Hi Everyone I am Ankit Gupta."
+print(sample)
+print(word_tokenizer(sample))
+
+nltk.download("stopwords")
+
+from nltk.corpus import stopwords
+
+en_stopwords = set(stopwords.words("english"))
+print(f"Stop Words in English : \n{ en_stopwords}")
+
+def remove_stopwords(text):
+    text = [word for word in text if word not in en_stopwords]
+    return text
+
+print(f"Before removing stopwords : {word_tokenizer(sample)}")
+print(f"After removing stopwords : {remove_stopwords(word_tokenizer(sample))}")
+
+from nltk.stem.porter import PorterStemmer
+
+stemmer = PorterStemmer()
+
+def stemming(text):
+
+    text = [stemmer.stem(word) for word in text]
+    return text
+
+sample = "I am creating a Notebook"
+print(f"Before Stemming : {(sample)}")
+print(f"After Stemming : {stemming(word_tokenizer(sample))}")
+
+!python -m spacy download en
+
+import spacy
+
+sp = spacy.load("en_core_web_sm")
+
+def lemmatization(text):
+    text = " ".join(text)
+    token = sp(text)
+    text = [word.lemma_ for word in token]
+    return text
+
+print(f"Before Lemmatization : {word_tokenizer(sample)}")
+print(f"After Lemmatization : {lemmatization(word_tokenizer(sample))}")
+
+from langdetect import detect
+
+
+en_text = """"Hi Everyone I am Ankit Gupta."""
+print(f" {en_text} : {detect(en_text)}")
+
+hindi_text = """मेरा नाम अंकित गुप्ता है और मैं एक छात्र हूँ"""
+print(f"{hindi_text} : {detect(hindi_text)}")
+
+df_temp = df.copy()
+
+def label(y):
+    if y == "5":
+        return 1
+    elif y == "4":
+        return 1
+    else:
+        return 0
+        
+        
+from tqdm import tqdm
+
+tqdm.pandas()
+
+df_temp["y"] = df_temp.ratings.progress_map(label)
+
+df_temp = df_temp[["review", "y", "ratings"]]
+
+df_temp.head()
+
+df_temp.y.value_counts()
+
+import seaborn as sns
+
+sns.countplot(x="y", data=df_temp)
+plt.show()
+
+df_temp2 = df_temp[(df_temp["ratings"] == "5")]
+
+positive = list(
+    df_temp2[
+        (df_temp2["review"].str.len() > 100) & (df_temp2["review"].str.len() < 350)
+    ]["review"]
+)
+
+len(positive)
+
+import nlpaug.augmenter.word as naw
+
+positive[41:49]
+
+aug = naw.AntonymAug(
+    name="Antonym_Aug",
+    aug_min=1,
+    aug_max=10,
+    aug_p=0.3,
+    lang="eng",
+    stopwords=en_stopwords,
+    tokenizer=None,
+    reverse_tokenizer=None,
+    stopwords_regex=None,
+    verbose=0,
+)
+
+aug_negative = aug.augment(positive)
+
+len(aug_negative)
+
+aug_negative[41:49]
+
+df_negative = pd.DataFrame({"review": aug_negative, "y": [0] * len(aug_negative)})
+
+df_positive = pd.DataFrame({"review": positive, "y": [1] * len(positive)})
+
+df_temp = (
+    pd.concat([df_negative, df_positive])
+    .sample(frac=1, random_state=11)
+    .reset_index(drop=True)
+)
+
+df_temp.info()
+
+df_temp.head()
+
+df = df_temp
+
+def preprocessing(text):
+
+    text = remove_url(text)
+    text = uni.normalize("NFKD", text)
+    text = handle_emoji(text)
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", "", text)
+    text = word_tokenizer(text)
+    # text = stemming(text)
+    text = lemmatization(text)
+    text = remove_stopwords(text)
+    text = " ".join(text)
+
+    return text
+
+from tqdm import tqdm
+
+tqdm.pandas()
+
+df["clean_review"] = df["review"].progress_map(preprocessing)
+
+reviews = df.clean_review.values.tolist()
+
+from tqdm import tqdm
+
+tqdm.pandas()
+
+df["clean_review2"] = df["clean_review"].progress_map(word_tokenizer)
+
+data_words = df["clean_review2"].values.tolist()
+
+len(data_words)
+
+import gensim.corpora as corpora
+
+id2word = corpora.Dictionary(data_words)
+texts = data_words
+corpus = [id2word.doc2bow(text) for text in texts]
+print(corpus[:1][0][:30])
+
+from gensim.models import LdaMulticore
+from gensim.models import LdaModel
+from pprint import pprint
+
+num_topics = 10
+lda_model = LdaMulticore(corpus=corpus, id2word=id2word,
+                     num_topics=num_topics, iterations=400)
+pprint(lda_model.print_topics())
+doc_lda = lda_model[corpus]
+
+%%time
+from gensim.models import FastText
+fasttext_model = FastText(data_words, vector_size= 100, window=5, min_count=5, workers=4,sg=1)
+
+aspects = ["phone", "camera", "battery", "quality", "processor"]
+
+def get_similarity(text, aspect):
+    try:
+        text = " ".join(text)
+        return fasttext_model.wv.n_similarity(text, aspect)
+    except:
+        return 0
+        
+from tqdm import tqdm
+tqdm.pandas()
+for aspect in aspects:
+    df[aspect] = df['clean_review2'].progress_map(lambda text: get_similarity(text, aspect))
+    
+df.head()
+
+spath="dataset/"
+df.to_csv(spath+"Clean_Flipkart_Product.csv", index = False)
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score, KFold
+
+
+df = pd.read_csv("dataset/Clean_Flipkart_Product.csv")
+
+
+def tokenizer(text):
+    return text.split()
+
+
+tfidf_vectorizer = TfidfVectorizer(tokenizer=tokenizer)
+X = tfidf_vectorizer.fit_transform(df["clean_review"])
+y = df["y"].values
+
+
+logistic_regression_model = LogisticRegression()
+
+
+cv_scores = cross_val_score(logistic_regression_model, X, y, cv=5)
+
+
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+manual_kfold_scores = []
+
+
+for train_idx, test_idx in kfold.split(X):
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+    logistic_regression_model.fit(X_train, y_train)  # Fit on training data
+    accuracy = logistic_regression_model.score(X_test, y_test)  # Calculate accuracy
+    manual_kfold_scores.append(accuracy)
+
+print("Cross-validation")
+print("Cross-validation scores:", cv_scores)
+print("Mean CV accuracy:", np.mean(cv_scores))
+print("Standard deviation of CV accuracy:", np.std(cv_scores))
+
+print()
+print("K-fold")
+
+print("K-fold scores:", manual_kfold_scores)
+print("Mean k-fold accuracy:", np.mean(manual_kfold_scores))
+print("Standard deviation of kfold accuracy:", np.std(manual_kfold_scores))
+
+
+plt.bar([fold - 0.2 for fold in range(1,6)], cv_scores, width=0.4, label='cross_val_score')
+plt.bar([fold + 0.2 for fold in range(1,6)], manual_kfold_scores, width=0.4, label='Manual KFold')
+plt.xlabel('Fold')
+plt.ylabel('Accuracy')
+plt.title('Cross-Validation Accuracy: cross_val_score vs Manual KFold')
+plt.xticks(range(1,6))
+plt.ylim(0.85, 1)  # Adjust the y-axis limits
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend()
+plt.show()
+
+mean_cv_score = np.mean(cv_scores)
+std_cv_score = np.std(cv_scores)
+
+mean_manual_score = np.mean(manual_kfold_scores)
+std_manual_score = np.std(manual_kfold_scores)
+
+print("cross_val_score - Mean:", mean_cv_score, "Std Dev:", std_cv_score)
+print("Manual KFold - Mean:", mean_manual_score, "Std Dev:", std_manual_score)
+
+import joblib
+spath="modelsave/"
+joblib.dump(logistic_regression_model, spath+'logistic_regression_model.joblib')
+joblib.dump(tfidf_vectorizer, spath+'tfidf_vectorizer.joblib')
+
+import torch
+import joblib
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
+from pyswarm import pso
+
+
+df = pd.read_csv("dataset/Clean_Flipkart_Product.csv")
+
+
+tfidf_vectorizer = TfidfVectorizer()
+tfidf_vectorizer.fit(df["clean_review"])
+
+X = tfidf_vectorizer.transform(df["clean_review"])
+y = df["y"].values
+
+
+def logistic_regression_model(params):
+    C = params[0]
+    max_iter = int(params[1])
+    solver = 'liblinear' if params[2] < 0.5 else 'lbfgs'  #Limited-memory Broyden-Fletcher-Goldfarb-Shanno
+    
+    model = LogisticRegression(C=C, max_iter=max_iter, solver=solver)
+    scores = cross_val_score(model, X, y, cv=5)
+    return -np.mean(scores)  
+
+# PSO optimization
+lb = [0.01, 50, 0]  
+ub = [10, 500, 1]  
+swarmsize = 15     
+maxiter = 20        
+
+# Perform PSO optimization
+best_params, best_scores = pso(logistic_regression_model, lb, ub, swarmsize=swarmsize, maxiter=maxiter, debug=True)
+
+print("Best hyperparameters:", best_params)
+
+
+best_values = np.array(best_scores)  
+
+# Train the final model with the best parameters
+best_model = LogisticRegression(C=best_params[0], max_iter=int(best_params[1]), solver='liblinear' if best_params[2] < 0.5 else 'lbfgs')
+cv_scores = cross_val_score(best_model, X, y, cv=5)
+
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+manual_kfold_scores = []
+
+# Iterate through each fold manually
+for train_idx, test_idx in kfold.split(X):
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+    best_model.fit(X_train, y_train)  # Fit on training data
+    accuracy = best_model.score(X_test, y_test)  # Calculate accuracy
+    manual_kfold_scores.append(accuracy)
+
+print("Cross-validation")
+print("Cross-validation scores after pso:", cv_scores)
+print("Mean CV accuracy after pso:", np.mean(cv_scores))
+print("Standard deviation of CV accuracy: after pso", np.std(cv_scores))
+
+print()
+print("K-fold")
+
+print("K-fold scores after pso:", manual_kfold_scores)
+print("Mean k-fold accuracy: after pso", np.mean(manual_kfold_scores))
+print("Standard deviation of kfold accuracy: after pso", np.std(manual_kfold_scores))
+
+plt.bar([iter - 0.2 for iter in range(1,6)], cv_scores, width=0.4, label='cross_val_score')
+plt.bar([iter + 0.2 for iter in range(1,6)], manual_kfold_scores, width=0.4, label='Manual KFold')
+plt.xlabel('Iteration')
+plt.ylabel('Score (Negative Mean CV Accuracy)')
+plt.title('PSO Optimization Progress')
+plt.xticks(range(1,6))
+plt.ylim(0.85, 1)  # Adjust the y-axis limits
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend()
+plt.show()
+
+
+import joblib
+spath="modelsave/"
+joblib.dump(best_model, spath+'best_model_pso.joblib')
+joblib.dump(tfidf_vectorizer, spath+'tfidf_vectorizer_pso.joblib')
+
+import joblib
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score, KFold
+import torch
+import pandas as pd
+from torch import nn
+
+spath="modelsave/"
+tfidf_vectorizer = joblib.load(spath+"tfidf_vectorizer.joblib")
+logistic_regression_model = joblib.load(spath+"logistic_regression_model.joblib")
+
+tfidf_vectorizer_pso = joblib.load(spath+"tfidf_vectorizer_pso.joblib")
+best_model_pso = joblib.load(spath+"best_model_pso.joblib")
+
+X = tfidf_vectorizer.fit_transform(df["clean_review"])
+y = df["y"].values
+
+X_pso = tfidf_vectorizer_pso.fit_transform(df["clean_review"])
+y_pso = df["y"].values
+
+cv_scores = cross_val_score(logistic_regression_model, X, y, cv=5)
+cv_scores_pso = cross_val_score(best_model_pso, X_pso, y_pso, cv=5)
+
+print("Cross-validation")
+print("Cross-validation scores:", cv_scores)
+print("Mean CV accuracy:", np.mean(cv_scores))
+print("Standard deviation of CV accuracy:", np.std(cv_scores))
+print()
+print("Cross-validation particle swarm optimization")
+print("Cross-validation scores:", cv_scores_pso)
+print("Mean CV accuracy:", np.mean(cv_scores_pso))
+print("Standard deviation of CV accuracy:", np.std(cv_scores_pso))
+
+plt.bar([fold - 0.2 for fold in range(1,6)], cv_scores, width=0.4, label='Cross-validation')
+plt.bar([fold + 0.2 for fold in range(1,6)], cv_scores_pso, width=0.4, label='Cross-validation pso')
+plt.xlabel('Fold')
+plt.ylabel('Accuracy')
+plt.title('Accuracy: Cross-validation vs Cross-validation pso')
+plt.xticks(range(1,6))
+plt.ylim(0.85, 1)  # Adjust the y-axis limits
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend()
+plt.show()
+
+
+import joblib
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score, KFold
+import torch
+import pandas as pd
+from torch import nn
+
+spath="modelsave/"
+tfidf_vectorizer = joblib.load(spath+"tfidf_vectorizer.joblib")
+logistic_regression_model = joblib.load(spath+"logistic_regression_model.joblib")
+
+tfidf_vectorizer_pso = joblib.load(spath+"tfidf_vectorizer_pso.joblib")
+best_model_pso = joblib.load(spath+"best_model_pso.joblib")
+
+X = tfidf_vectorizer.fit_transform(df["clean_review"])
+y = df["y"].values
+
+X_pso = tfidf_vectorizer_pso.fit_transform(df["clean_review"])
+y_pso = df["y"].values
+
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+kfold_scores = []
+Kfold_scores_pso=[]
+
+# Iterate through each fold manually
+for train_idx, test_idx in kfold.split(X):
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+    logistic_regression_model.fit(X_train, y_train)  # Fit on training data
+    accuracy = logistic_regression_model.score(X_test, y_test)  # Calculate accuracy
+    kfold_scores.append(accuracy)
+
+for train_idx, test_idx in kfold.split(X_pso):
+    X_train, X_test = X_pso[train_idx], X_pso[test_idx]
+    y_train, y_test = y_pso[train_idx], y_pso[test_idx]
+    best_model_pso.fit(X_train, y_train)  # Fit on training data
+    accuracy = best_model_pso.score(X_test, y_test)  # Calculate accuracy
+    Kfold_scores_pso.append(accuracy)
+
+print("K-fold scores")
+print("K-fold scores:", kfold_scores)
+print("Mean K-fold accuracy:", np.mean(kfold_scores))
+print("Standard deviation of K-fold accuracy:", np.std(kfold_scores))
+print()
+print("K-fold scores particle swarm optimization")
+print("K-fold scores:", Kfold_scores_pso)
+print("Mean K-fold accuracy:", np.mean(Kfold_scores_pso))
+print("Standard deviation of K-fold accuracy:", np.std(Kfold_scores_pso))
+
+plt.bar([fold - 0.2 for fold in range(1,6)], kfold_scores, width=0.4, label='K-fold')
+plt.bar([fold + 0.2 for fold in range(1,6)], Kfold_scores_pso, width=0.4, label='K-fold pso')
+plt.xlabel('Fold')
+plt.ylabel('Accuracy')
+plt.title('Accuracy: K-fold vs K-fold pso')
+plt.xticks(range(1,6))
+plt.ylim(0.85, 1)  # Adjust the y-axis limits
+plt.grid(axis='y', linestyle='--', alpha=0.7)
+plt.legend()
+plt.show()
+
+
+import joblib
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+import torch
+import pandas as pd
+from torch import nn
+
+
+spath="modelsave/"
+tfidf_vectorizer = joblib.load(spath+"tfidf_vectorizer.joblib")
+logistic_regression_model = joblib.load(spath+"logistic_regression_model.joblib")
+
+
+def get_similarity(text, aspect):
+    try:
+#         text = " ".join(text)
+        return fasttext_model.wv.n_similarity(text, aspect)
+    except:
+        return 0
+        
+def best_aspect(text, aspects):
+    a = []
+    for aspect in aspects:
+        a.append(get_similarity(text, aspect))
+    
+    return aspects[np.argmax(a)]
+
+def preprocessing(text):
+    text = remove_url(text)
+    text = uni.normalize("NFKD", text)
+    text = handle_emoji(text)
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", "", text)
+    text = word_tokenizer(text)
+    # text = stemming(text)
+    text = lemmatization(text)
+    text = remove_stopwords(text)
+    text = " ".join(text)
+    return text
+    
+sample_text = "I just love the phone, camera, features, bought for my mother and she absolutely loves it. Thanks, Flipkart."
+
+X_test = tfidf_vectorizer.transform([sample_text])
+
+prediction = logistic_regression_model.predict(X_test)
+
+prediction_label = "Positive" if prediction == 1 else "Negative"
+print("Logistic Regression Prediction for the sample text:", prediction_label)
+
+aspects = ["phone", "camera", "battery", "quality", "processor"]
+
+preprocessed_sample = preprocessing(sample_text)
+ba = best_aspect(preprocessed_sample, aspects)
+
+print("Best aspect in the sample:", ba)
+
+import joblib
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
+import torch
+import pandas as pd
+from torch import nn
+
+
+
+spath="modelsave/"
+tfidf_vectorizer = joblib.load(spath+"tfidf_vectorizer_pso.joblib")
+logistic_regression_model = joblib.load(spath+"best_model_pso.joblib")
+
+def get_similarity(text, aspect):
+    try:
+#         text = " ".join(text)
+        return fasttext_model.wv.n_similarity(text, aspect)
+    except:
+        return 0
+        
+def best_aspect(text, aspects):
+    a = []
+    for aspect in aspects:
+        a.append(get_similarity(text, aspect))
+    
+    return aspects[np.argmax(a)]
+
+def preprocessing(text):
+    text = remove_url(text)
+    text = uni.normalize("NFKD", text)
+    text = handle_emoji(text)
+    text = text.lower()
+    text = re.sub(r"[^\w\s]", "", text)
+    text = word_tokenizer(text)
+    # text = stemming(text)
+    text = lemmatization(text)
+    text = remove_stopwords(text)
+    text = " ".join(text)
+    return text
+    
+sample_text = "I just love the phone, camera, features, bought for my mother and she absolutely loves it. Thanks, Flipkart."
+
+X_test = tfidf_vectorizer.transform([sample_text])
+
+prediction = logistic_regression_model.predict(X_test)
+
+prediction_label = "Positive" if prediction == 1 else "Negative"
+print("Logistic Regression using PSO Prediction for the sample text:", prediction_label)
+
+aspects = ["phone", "camera", "battery", "features", "processor"]
+
+preprocessed_sample = preprocessing(sample_text)
+ba = best_aspect(preprocessed_sample, aspects)
+
+print("Best aspect in the sample:", ba)
+
+
