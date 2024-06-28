@@ -1,1 +1,3 @@
-# Sentment_analysis-using-PSO
+# FEATURE SELECTION OF REVIEWS USING CROSS VALIDATION PSO
+# ABSTRACT
+The goal of this project is to develop a sophisticated sentiment analysis system using Python that goes beyond traditional approaches by not only collecting general opinion in reviews, but also identifying and prioritizing key aspects or attributes that significantly influence the expressed sentiment. The system uses natural language processing (NLP) techniques to analyze user reviews, extract relevant aspects and assess their impact on sentiment polarity. With the help of advanced machine learning algorithms, the system understands the opinions of users in many ways and provides valuable information to companies and decision makers. It is expected that the project and its results will improve the accuracy and depth of sentiment analysis, leading to more informed decisions based on a detailed understanding of customer opinions and preferences.
